@@ -1,0 +1,35 @@
+---
+        - name: install mysql db
+          apt: name={{ item }} state=present force=yes
+          with_items:
+                  - mariadb-server
+                  - mariadb-client
+
+        - name: start mysql service
+          service:
+                  name: mysqld
+                  state: started
+                  enabled: yes
+        
+        - name: create application db
+          become: yes
+          mysql_db:
+                login_unix_socket: /var/run/mysqld/mysqld.sock
+                name: "{{ db_name }}"
+                state: present
+
+        - name: create db user
+          mysql_user:
+                  login_unix_socket: /var/run/mysqld/mysqld.sock
+                  name: "{{ db_user }}"
+                  password: "{{ db_user_password }}"
+                  priv: '*.*:ALL'
+                  state: present
+                  host: '%'
+        
+        - name: update mysql config file
+          ini_file:
+                path: /etc/mysql/my.cnf
+                section: mysqld
+                option: bind-address
+                value: 0.0.0.0

@@ -1,0 +1,15 @@
+        - name: install and configure mysql db
+          hosts: db-server
+          become: yes
+          become_method: sudo
+          roles:
+                  - python
+                  - mysql_db 
+
+        - name: install and configure webserver
+          hosts: web-server-1,web-server-2
+          become: yes
+          become_method: sudo
+          roles:
+                  - python
+                  - flask_web

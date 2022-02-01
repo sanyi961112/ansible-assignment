@@ -1,0 +1,72 @@
+- name: create firewall rule and config networking
+  hosts: localhost
+  tasks:
+        - name: allow http
+          gcp_compute_firewall:
+            name: "allow-http"
+            allowed:
+                - ip_protocol: tcp
+                  ports:
+                          - '80'
+            priority: 1000
+            project: "{{ project_id }}"
+            state: present
+            auth_kind: serviceaccount
+            service_account_file: "{{ service_account_file }}"
+            source_ranges: 0.0.0.0/0
+
+        - name: create a instance group
+          google.cloud.gcp_compute_instance_group:
+            name: instgroup
+            named_ports:
+            - name: ansible
+              port: 1234
+            network: null
+            zone: europe-west1-b
+            project: "{{ project_id }}"
+            auth_kind: serviceaccount
+            service_account_file: "{{ service_account_file }}"
+            state: present
+          register: instgroup
+
+        - name: add instances to instgroup
+          shell: gcloud compute instance-groups unmanaged add-instances instgroup --instances=web-server-1,web-server-2,db-server --zone=europe-west1-b
+
+        - name: add healthcheck
+          gcp_compute_health_check:
+            name: healthcheck
+            healthy_threshold: 10
+            type: TCP
+            tcp_health_check:
+                    port_name: service-health
+                    port: 80
+            timeout_sec: 2
+            unhealthy_threshold: 5
+            project: "{{ project_id }}"
+            auth_kind: serviceaccount
+            service_account_file: "{{ service_account_file }}"
+            state: present
+            scopes:
+                    - https://www.googleapis.com/auth/compute
+          register: healthcheck
+
+        - name: add loadbalancer
+          gcp_compute_backend_service:
+            name: loadbalancer
+            load_balancing_scheme: EXTERNAL
+            enable_cdn: 'true'
+            backends:
+                    - group: "{{ instgroup.selfLink }}"
+            health_checks:
+                    - "{{ healthcheck.selfLink }}"
+            project: "{{ project_id }}"
+            auth_kind: serviceaccount
+            service_account_file: "{{ service_account_file }}"
+            state: present
+            scopes:
+                    - https://www.googleapis.com/auth/compute
+          register: loadbalancer
+
+        - name: debug
+          debug:
+                  msg: "{{ loadbalancer }}"  
